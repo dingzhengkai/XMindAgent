@@ -1,0 +1,69 @@
+package cc.xstack.crack.xmind;
+
+import java.lang.instrument.ClassFileTransformer;
+import java.lang.instrument.IllegalClassFormatException;
+import java.lang.instrument.Instrumentation;
+import java.security.ProtectionDomain;
+import java.util.Iterator;
+import java.util.List;
+
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.MethodNode;
+
+public class Agent {
+    public static void premain(String args, Instrumentation inst) {
+        inst.addTransformer(new Agent.MethodEntryTransformer());
+    }
+
+    private static class MethodEntryTransformer implements ClassFileTransformer {
+        private MethodEntryTransformer() {
+        }
+
+        public byte[] transform(ClassLoader loader, String className, Class classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
+            try {
+                if (className != null && className.startsWith("net/xmind/verify/internal/LicenseVerifier")) {
+                    ClassReader cr = new ClassReader(classfileBuffer);
+                    ClassNode cn = new ClassNode();
+                    cr.accept(cn, 0);
+                    List methodNodes = cn.methods;
+                    Iterator var9 = methodNodes.iterator();
+
+                    while (var9.hasNext()) {
+                        MethodNode methodNode = (MethodNode) var9.next();
+                        if ("checkSignatureValid".equals(methodNode.name)) {
+                            Type[] type = Type.getArgumentTypes(methodNode.desc);
+                            Type returnType = Type.getReturnType(methodNode.desc);
+                            if (type.length == 3 && returnType.toString().equals("Z")) {
+                                InsnList insnList = methodNode.instructions;
+                                insnList.clear();
+                                insnList.add((AbstractInsnNode) (new InsnNode(4)));
+                                insnList.add((AbstractInsnNode) (new InsnNode(172)));
+                                methodNode.exceptions.clear();
+                                methodNode.visitEnd();
+                                ClassWriter cw = new ClassWriter(0);
+                                cn.accept(cw);
+                                System.out.println(className + " -> " + methodNode.name + " -> " + methodNode.desc);
+                                return cw.toByteArray();
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable var15) {
+                var15.printStackTrace();
+            }
+
+            return classfileBuffer;
+        }
+
+        // $FF: synthetic method
+        MethodEntryTransformer(Object x0) {
+            this();
+        }
+    }
+}
